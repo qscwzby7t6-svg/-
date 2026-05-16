@@ -13,6 +13,7 @@ from .fight_generator import FightSceneGenerator, Combatant
 from .swear_handler import SwearWordHandler
 from .climax_generator import ClimaxGenerator, Climax
 from .word_count_controller import WordCountController, WordCountTarget
+from .similarity_comparator import TextSimilarityComparator, ComparisonReport
 
 __all__ = [
     'NovelParser',
@@ -35,5 +36,7 @@ __all__ = [
     'ClimaxGenerator',
     'Climax',
     'WordCountController',
-    'WordCountTarget'
+    'WordCountTarget',
+    'TextSimilarityComparator',
+    'ComparisonReport'
 ]
