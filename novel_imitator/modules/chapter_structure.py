@@ -137,11 +137,14 @@ class ChapterStructureAnalyzer:
         
         separators = ['\n\n', '\n', '。']
         
-        for sep in separators:
-            if len(content) > 500:
-                break
-            parts = content.split(sep)
-            if len(parts) > 5:
+        parts = content.split('\n')
+        sep = '\n'
+        
+        for current_sep in separators:
+            temp_parts = content.split(current_sep)
+            if len(temp_parts) > 5:
+                parts = temp_parts
+                sep = current_sep
                 break
         
         current_pos = 0

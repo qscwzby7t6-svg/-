@@ -1,6 +1,6 @@
 """
 核心模块初始化文件
 """
-from .controller import NovelImitatorController, NovelImitator
+from .controller import NovelImitatorController
 
-__all__ = ['NovelImitatorController', 'NovelImitator']
+__all__ = ['NovelImitatorController']

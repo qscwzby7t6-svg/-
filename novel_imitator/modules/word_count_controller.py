@@ -134,8 +134,9 @@ class WordCountController:
         current_count = len(result)
         target_count = target.target
         
-        max_iterations = 50
+        max_iterations = 30
         iterations = 0
+        used_phrases = set()
         
         while current_count < target.min_acceptable and iterations < max_iterations:
             iterations += 1
@@ -149,7 +150,12 @@ class WordCountController:
             else:
                 phrase_type = random.choice(['dialogue', 'action', 'description', 'emotion', 'transition'])
             
-            phrase = random.choice(self.expansion_phrases[phrase_type])
+            available_phrases = [p for p in self.expansion_phrases[phrase_type] if p not in used_phrases]
+            if not available_phrases:
+                available_phrases = self.expansion_phrases[phrase_type]
+            
+            phrase = random.choice(available_phrases)
+            used_phrases.add(phrase)
             
             sentences = re.split(r'([。！？])', result)
             
@@ -167,8 +173,44 @@ class WordCountController:
             if current_count >= target.min_acceptable:
                 break
         
+        result = self._remove_duplicates(result)
+        
         logger.info(f"扩展完成，当前字数: {len(result)}")
         return result
+    
+    def _remove_duplicates(self, text: str) -> str:
+        """移除重复内容"""
+        lines = text.split('\n')
+        seen = set()
+        unique_lines = []
+        
+        for line in lines:
+            line_stripped = line.strip()
+            if line_stripped and line_stripped not in seen:
+                seen.add(line_stripped)
+                unique_lines.append(line)
+            elif not line_stripped:
+                unique_lines.append(line)
+        
+        result = '\n'.join(unique_lines)
+        
+        words = result.split('。')
+        seen_texts = set()
+        unique_words = []
+        
+        for word in words:
+            word_stripped = word.strip()
+            if len(word_stripped) > 10:
+                key = word_stripped[:20]
+                if key not in seen_texts:
+                    seen_texts.add(key)
+                    unique_words.append(word)
+                else:
+                    continue
+            else:
+                unique_words.append(word)
+        
+        return '。'.join(unique_words)
     
     def contract_text(self, text: str, target: WordCountTarget) -> str:
         """缩减文本"""
