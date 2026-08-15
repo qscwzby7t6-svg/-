@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>手写转 Excel 工作台 · 逐行核对数字化</title>
+  <meta name="description" content="手写图片批量识别转 Excel，强制逐行人工复核，100% 确认后导出。所有图片仅在本机浏览器处理。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="assets/style.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23c2402a'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='%23f6f1e7' font-family='serif' font-weight='bold'%3E核%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <div class="brand-seal">核</div>
+      <div class="brand-text">
+        <h1>手写转 Excel 工作台</h1>
+        <p>识别 · 逐行强制复核 · 确认后导出</p>
+      </div>
+    </div>
+    <div class="header-badges">
+      <span class="badge badge-privacy">🔒 图片仅在本机处理，不上传服务器</span>
+    </div>
+  </header>
+
+  <nav class="stepper" id="stepper" aria-label="流程步骤">
+    <button class="step is-active" data-step="1"><span class="step-num">01</span><span class="step-label">上传图片</span></button>
+    <span class="step-arrow">→</span>
+    <button class="step" data-step="2"><span class="step-num">02</span><span class="step-label">OCR 识别</span></button>
+    <span class="step-arrow">→</span>
+    <button class="step" data-step="3"><span class="step-num">03</span><span class="step-label">逐行复核</span></button>
+    <span class="step-arrow">→</span>
+    <button class="step" data-step="4"><span class="step-num">04</span><span class="step-label">导出 Excel</span></button>
+  </nav>
+
+  <main class="workspace">
+
+    <!-- ============ 步骤 1：上传 ============ -->
+    <section class="panel" id="step-1">
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="点击或拖拽上传手写图片">
+        <div class="dropzone-art">墨</div>
+        <div class="dropzone-title">拖拽手写图片到此处，或点击选择文件</div>
+        <div class="dropzone-sub">支持多选 · JPG / PNG / WebP / BMP · 图片全程留在本机</div>
+      </div>
+      <input type="file" id="file-input" accept="image/*" multiple hidden />
+      <div class="thumb-grid" id="thumb-grid"></div>
+      <div class="step-actions">
+        <button class="btn btn-primary" id="btn-to-recognize" disabled>进入识别 →</button>
+        <span class="hint" id="upload-hint">请先添加至少一张图片</span>
+      </div>
+    </section>
+
+    <!-- ============ 步骤 2：识别 ============ -->
+    <section class="panel hidden" id="step-2">
+      <div class="panel-head">
+        <h2>OCR 识别</h2>
+        <label class="toggle">
+          <input type="checkbox" id="enhance-toggle" checked />
+          <span class="toggle-track"></span>
+          <span>图像增强（灰度 · 对比度拉伸 · 小图放大）</span>
+        </label>
+      </div>
+      <div class="step-actions">
+        <button class="btn btn-primary" id="btn-start-recognize">开始识别</button>
+        <span class="hint" id="recognize-hint"></span>
+      </div>
+      <div class="progress-list" id="progress-list"></div>
+      <div class="step-actions bottom">
+        <button class="btn btn-ghost" id="btn-back-upload">← 返回上传</button>
+        <button class="btn btn-primary" id="btn-to-review" disabled>进入复核 →</button>
+      </div>
+    </section>
+
+    <!-- ============ 步骤 3：复核（强制） ============ -->
+    <section class="panel hidden" id="step-3">
+      <div class="panel-head">
+        <h2>逐行复核 <span class="tag tag-must">强制环节</span></h2>
+        <div class="review-progress" id="review-progress"></div>
+      </div>
+      <p class="review-rule">对照左侧原图逐行核对：修正文字后点 <b>确认</b> 盖章。黄色行置信度低，请优先核对。<b>全部行盖章确认后才可导出</b>。</p>
+      <div class="image-strip" id="image-strip"></div>
+      <div class="review-split">
+        <div class="viewer" id="viewer">
+          <div class="viewer-toolbar">
+            <span class="viewer-filename" id="viewer-filename"></span>
+            <span class="viewer-zoom">
+              <button class="btn-mini" id="zoom-out" aria-label="缩小">−</button>
+              <input type="range" id="zoom-range" min="30" max="300" value="100" />
+              <button class="btn-mini" id="zoom-in" aria-label="放大">＋</button>
+              <span class="zoom-val" id="zoom-val">100%</span>
+            </span>
+          </div>
+          <div class="viewer-scroll" id="viewer-scroll">
+            <div class="viewer-canvas" id="viewer-canvas">
+              <img id="viewer-img" alt="原图预览" />
+              <svg id="viewer-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+          </div>
+          <p class="viewer-tip">提示：点击右侧某一行，会在图上框出它的位置</p>
+        </div>
+        <div class="lines-panel">
+          <div class="lines-toolbar">
+            <div class="filter-group" id="filter-group">
+              <button class="filter is-active" data-filter="all">全部</button>
+              <button class="filter" data-filter="unverified">未核对</button>
+              <button class="filter" data-filter="low">低置信度</button>
+            </div>
+            <button class="btn-mini" id="btn-add-line">＋ 添加一行</button>
+          </div>
+          <div class="lines-list" id="lines-list"></div>
+        </div>
+      </div>
+      <div class="step-actions bottom">
+        <button class="btn btn-ghost" id="btn-back-recognize">← 返回识别</button>
+        <button class="btn btn-primary" id="btn-to-export" disabled>进入导出 →</button>
+      </div>
+    </section>
+
+    <!-- ============ 步骤 4：导出 ============ -->
+    <section class="panel hidden" id="step-4">
+      <div class="panel-head">
+        <h2>导出 Excel</h2>
+        <div class="verified-stamp-big" id="final-stamp">已全部核对</div>
+      </div>
+      <div class="export-summary" id="export-summary"></div>
+      <div class="table-wrap">
+        <table class="preview-table" id="preview-table"></table>
+      </div>
+      <div class="step-actions bottom">
+        <button class="btn btn-ghost" id="btn-back-review">← 返回复核</button>
+        <button class="btn btn-primary btn-lg" id="btn-export">⬇ 下载 .xlsx</button>
+        <button class="btn btn-ghost" id="btn-restart">清空重来</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>手写 OCR 识别无法保证算法 100% 准确 —— 本工具通过强制逐行人工复核保证最终导出数据 100% 经您确认。图片与数据全程保留在本机浏览器。</p>
+  </footer>
+
+  <div class="toast-viewport" id="toast-viewport"></div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>
